@@ -1,0 +1,82 @@
+#!/bin/bash
+
+have_database() {
+	! server_running || return 1;
+	psql -U ${USER} -h ${HOST} -p ${PORT} \
+		| awk '{print $1}' \
+		| grep -qw ${DBNAME}
+}
+
+_get_port_from_running_db() {
+	head -n 4 ${B}/data/postmaster.pid | tail -n 1
+}
+
+_write_config() {
+	cat <<-EOF > ${B}/${DBENV_CONF}
+		USER=${USER}
+		HOST=${HOST}
+		DBNAME=${DBNAME}
+		PORT=${PORT}
+	EOF
+}
+
+_server_initialized() {
+	[ -s ${B}/data/PG_VERSION ]
+}
+
+_server_running() {
+	[ -s ${B}/data/postmaster.pid ]
+}
+
+_write_server_configs() {
+	info "Running initdb"
+	initdb -D ${B}/data -U ${USER} -A trust > ${B}/initdb.log
+}
+
+_start_server() {
+	pg_ctl start -D ${B}/data -l ${B}/log  -w -o "-k ${B}/tmp -p ${PORT}"
+	r=$?
+
+	if [ ${r} -ne 0 ]; then
+		err "postgres failed"
+		return ${r}
+	fi
+
+	if ! have_database; then
+		createdb -h ${HOST} -U ${USER} -p ${PORT} ${DBNAME}
+		r=${?}
+
+		if [ ${r} -ne 0 ]; then
+			err "createdb failed"
+		fi
+	fi
+
+	return ${r}
+}
+
+_stop_server() {
+	local pid=$(head -n 1 ${B}/data/postmaster.pid)
+
+	pg_ctl stop -D ${B}/data
+	if [ $? -ne 0 ]; then
+		err "Failed to stop server"
+		return 1
+	fi
+
+	return 0
+}
+
+_shell() {
+	psql -U ${USER} -h ${HOST} -d ${DBNAME} -p ${PORT} ${@}
+}
+
+_url() {
+	echo "postgres://${USER}@${HOST}:${PORT}/${DBNAME}"
+}
+
+dbtype="pg"
+default_user="pgdev"
+default_dbname="pgdev"
+. ~/.local/dbenv/base.sh
+
+# vim: noet

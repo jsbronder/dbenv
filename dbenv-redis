@@ -1,0 +1,54 @@
+#!/bin/bash
+
+_get_port_from_running_db() {
+	grep '^port' ${B}/redis.conf | awk '{print $2}'
+}
+
+_write_config() {
+	cat <<-EOF > ${B}/${DBENV_CONF}
+		HOST=${HOST}
+		PORT=${PORT}
+	EOF
+}
+
+_server_initialized() {
+	[ -s ${B}/redis.conf ]
+}
+
+_server_running() {
+	redis-cli -h ${HOST} -p ${PORT} ping &>/dev/null
+}
+
+_write_server_configs() {
+	info "Writing redis.conf"
+
+	cat <<-EOF > ${B}/redis.conf
+		bind          ${HOST}
+		dir           ${B}/data
+		dbfilename    dump.rdb
+		port          ${PORT}
+		pidfile       ${B}/tmp/redis.pid
+		maxclients    1024
+	EOF
+}
+
+_start_server() {
+	redis-server ${B}/redis.conf &> ${B}/log &
+}
+
+_stop_server() {
+	redis-cli -h ${HOST} -p ${PORT} shutdown save
+}
+
+_shell() {
+	redis-cli -h ${HOST} -p ${PORT} ${@}
+}
+
+_url() {
+	echo "redis://${HOST}:${PORT}"
+}
+
+dbtype="redis"
+. ~/.local/dbenv/base.sh
+
+# vim: noet
