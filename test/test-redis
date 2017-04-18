@@ -1,0 +1,52 @@
+#!/bin/bash
+
+test_1_help() {
+    ${R}/dbenv redis -h >/dev/null || die ${LINENO}
+}
+
+test_2_base_dir() {
+    local out
+
+    out=$(${R}/dbenv redis base-dir) || die ${LINENO}
+    [ "${out}" == "${HOME}/.local/dbenv/.dbenv-redis" ] || die ${LINENO}
+
+    out=$(${R}/dbenv redis -b ${T} base-dir) || die ${LINENO}
+    [ "${out}" == "${T}" ] || die ${LINENO}
+}
+
+test_3_redis() {
+    local cmd="${R}/dbenv redis -b ${T}/dbdir"
+
+    ${cmd} start >/dev/null || die ${LINENO}
+
+    [ -d ${T}/dbdir ] || die ${LINENO}
+    [ -d ${T}/dbdir/data ] || die ${LINENO}
+    ps | grep -q "redis-server" || die ${LINENO}
+
+    # Older releases were buggy on writing pidfiles
+    local redis_version=$(redis-server --version | sed 's|.*v=\([^ ]*\) .*|\1|')
+    local redis_maj=$(echo ${redis_version} | cut -d . -f 1)
+    local redis_min=$(echo ${redis_version} | cut -d . -f 2)
+    if [ ${redis_maj} -ge 3 ] && [ ${redis_min} -ge 1 ]; then
+        [ -s "${T}/dbdir/tmp/redis.pid" ] || die ${LINENO}
+    fi
+
+    local port=$(source ${T}/dbdir/dbenv-redis.conf && echo ${PORT})
+    [ "$(${cmd} url)" == "redis://127.0.0.1:${port}" ] || die ${LINENO}
+
+    # Earlier versions used \r\n so we need to accept extra whitespace prior to
+    # the end of the line anchor.
+    echo 'help' | \
+        ${cmd} shell \
+        | grep --color=never -q "^redis-cli [0-9]\.[0-9]\.[0-9][[:space:]]\?$" \
+        || die ${LINENO}
+
+    ${cmd} stop >/dev/null
+    [ -d ${T}/dbdir/data ] || die ${LINENO}
+    [ ! -f "${T}/dbdir/tmp/redis.pid" ] || die ${LINENO}
+
+    ${cmd} --force clean >/dev/null
+    [ ! -d ${T}/dbdir/data ] || die ${LINENO}
+}
+
+source $(dirname $(readlink -f ${0}))/base.sh

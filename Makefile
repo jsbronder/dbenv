@@ -7,6 +7,8 @@ DBENV_ROOT ?= ~/.local/dbenv
 DRIVERDIR = $(DBENV_ROOT)/drivers
 DRIVERS=pg redis
 
+.PHONY: test
+
 install:
 	install -m 755 -d $(DBENV_ROOT)/bin
 	install -m 755 dbenv $(DBENV_ROOT)/bin
@@ -24,3 +26,9 @@ uninstall:
 		rm $(DRIVERDIR)/$${driver}; \
 	done;
 	rmdir $(DRIVERDIR)
+
+test:
+	@for driver in $(DRIVERS); do \
+		echo Testing $${driver}; \
+		setsid test/test-$${driver}; \
+	done;
