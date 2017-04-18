@@ -2,9 +2,34 @@
 
 have_database() {
 	! server_running || return 1;
-	psql -U ${USER} -h ${HOST} -p ${PORT} \
+	${PSQL} -U ${USER} -h ${HOST} -p ${PORT} \
 		| awk '{print $1}' \
 		| grep -qw ${DBNAME}
+}
+
+# Find a postgres util.  We have to do this as some distros do not put the
+# utilities in the default PATH.
+find_util() {
+	local util=$1
+
+	local match=$(which ${util})
+	if [ -n "${match}" ]; then
+		echo ${match}
+		return
+	fi
+
+	local d="/usr/lib/postgresql"
+	if [ -d "${d}" ] && [ -x "${d}/bin/${util}" ]; then
+		echo "${d}/bin/${util}"
+		return
+	fi
+
+	for d in $(echo /usr/lib/postgresql/* | sort); do
+		if [ -x "${d}/bin/${util}" ]; then
+			echo "${d}/bin/${util}"
+			return
+		fi
+	done
 }
 
 _get_port_from_running_db() {
@@ -30,11 +55,11 @@ _server_running() {
 
 _write_server_configs() {
 	info "Running initdb"
-	initdb -D ${B}/data -U ${USER} -A trust > ${B}/initdb.log
+	${INITDB} -D ${B}/data -U ${USER} -A trust > ${B}/initdb.log
 }
 
 _start_server() {
-	pg_ctl start -D ${B}/data -l ${B}/log  -w -o "-k ${B}/tmp -p ${PORT}"
+	${PG_CTL} start -D ${B}/data -l ${B}/log  -w -o "-k ${B}/tmp -p ${PORT}"
 	r=$?
 
 	if [ ${r} -ne 0 ]; then
@@ -43,7 +68,7 @@ _start_server() {
 	fi
 
 	if ! have_database; then
-		createdb -h ${HOST} -U ${USER} -p ${PORT} ${DBNAME}
+		${CREATEDB} -h ${HOST} -U ${USER} -p ${PORT} ${DBNAME}
 		r=${?}
 
 		if [ ${r} -ne 0 ]; then
@@ -57,7 +82,7 @@ _start_server() {
 _stop_server() {
 	local pid=$(head -n 1 ${B}/data/postmaster.pid)
 
-	pg_ctl stop -D ${B}/data
+	${PG_CTL} stop -D ${B}/data
 	if [ $? -ne 0 ]; then
 		err "Failed to stop server"
 		return 1
@@ -67,11 +92,29 @@ _stop_server() {
 }
 
 _shell() {
-	psql -U ${USER} -h ${HOST} -d ${DBNAME} -p ${PORT} ${@}
+	${PSQL} -U ${USER} -h ${HOST} -d ${DBNAME} -p ${PORT} ${@}
 }
 
 _url() {
 	echo "postgres://${USER}@${HOST}:${PORT}/${DBNAME}"
+}
+
+_check_env() {
+	PSQL=$(find_util psql)
+	INITDB=$(find_util initdb)
+	CREATEDB=$(find_util createdb)
+	PG_CTL=$(find_util pg_ctl)
+
+	__check_env_die() {
+		err "Could not find $1"
+		exit 1
+	}
+
+	[ -z "${PSQL}" ] && __check_env_die "psql"
+	[ -z "${INITDB}" ] && __check_env_die "initdb"
+	[ -z "${CREATEDB}" ] && __check_env_die "createdb"
+	[ -z "${PG_CTL}" ] && __check_env_die "pg_ctl"
+	unset -f __check_env_die
 }
 
 driver_dbtype="pg"
