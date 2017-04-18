@@ -48,7 +48,6 @@ _url() {
 	echo "redis://${HOST}:${PORT}"
 }
 
-dbtype="redis"
-. ~/.local/dbenv/base.sh
+driver_dbtype="redis"
 
 # vim: noet

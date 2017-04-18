@@ -5,9 +5,9 @@ export HOST=
 export PORT=
 export DBNAME=
 export USER=
-
-dbdirname="local-${dbtype}"
-export DBENV_CONF="${dbdirname}.conf"
+export DRIVER=
+export DBENV_ROOT=${DBENV_ROOT}
+export DBDATA=
 
 usage() {
 	cat <<-EOF
@@ -17,17 +17,17 @@ usage() {
 		    -h, --help               This screen
 		    -b, --base-dir [PATH]    Path to base directory.  If unspecified, the directory
 		                             tree will be searched upward to either the user's home
-		                             directory or / looking for the directory '.${dbdirname}/'.
-		                             If not found, the default ~/.local/dbenv/${dbdirname}/ is used.
-		    -I, --initialize         Shortcut for "--base-dir ./.${dbdirname}"
+		                             directory or / looking for the directory '${DBDATA}/'.
+		                             If not found, the default ~/.local/dbenv/${DBDATA}/ is used.
+		    -I, --initialize         Shortcut for "--base-dir ./${DBDATA}"
 
 
 		ACTION:
-		    start         Start the ${dbtype} server and create the default database
+		    start         Start the ${driver_dbtype} server and create the default database
 		    stop          Stop the resid server
 		    shell         Connect to server with psql
 		    clean         Stop the server and wipe any remaining files
-		    url           Print url to ${dbtype} server
+		    url           Print url to ${driver_dbtype} server
 		    base-dir      Print the resolved base-dir
 
 		EXTRA ARGUMENTS are passed when using the 'shell' action and are otherwise ignored.
@@ -56,20 +56,20 @@ get_port() {
 
 init() {
 	# First find the base directory
-	# - If BASE_DIR was already set we're done.
-	# - Otherwise search up the directory tree looking for .${dbdirname}
-	# - Finally fall back to using ~/.local/dbenv/${dbdirname}
+	# - If B was already set we're done.
+	# - Otherwise search up the directory tree looking for ${DBDATA}
+	# - Finally fall back to using ~/.local/dbenv/${DBDATA}
 	if [ ! -n "${B}" ]; then
-		while [ ! -d ./.${dbdirname} ]; do
+		while [ ! -d ./${DBDATA} ]; do
 			cd ../
 			[ $(pwd) == ${HOME} ] && break
 			[ $(pwd) == / ] && break
 		done
 
-		if [ -d ./.${dbdirname} ]; then
-			B=$(pwd)/.${dbdirname}/
+		if [ -d ./${DBDATA} ]; then
+			B=$(pwd)/${DBDATA}/
 		else
-			B=${HOME}/.local/dbenv/${dbdirname}
+			B=${HOME}/.local/dbenv/${DBDATA}
 		fi
 	fi
 
@@ -79,8 +79,8 @@ init() {
 		source ${B}/${DBENV_CONF}
 	fi
 
-	: ${USER:=${default_user}}
-	: ${DBNAME:=${default_dbname}}
+	: ${USER:=${driver_default_user}}
+	: ${DBNAME:=${driver_default_dbname}}
 	: ${HOST:=127.0.0.1}
 	: ${PORT:=$(get_port)}
 
@@ -157,6 +157,71 @@ shell() {
 	_shell ${@}
 }
 
+
+# Initialization:
+# 	- Define defaults for driver functions
+#	- Find and source the driver
+
+_missing() {
+	err "${DRIVER}_${1} undefined"
+	exit 1
+}
+_get_port_from_running_db() { missing "_get_port_from_running_db"; }
+_write_config () { missing "_write_config"; }
+_server_initialized() { missing "_server_initialized"; }
+_server_running() { missing "_server_running"; }
+_write_server_configs() { missing "_write_server_configs"; }
+_start_server() { missing "_start_server"; }
+_stop_server() { missing "_stop_server"; }
+_shell() { missing "_shell"; }
+_url() { missing "_url"; }
+
+_source_driver() {
+	local check_dirs="~/.local/dbenv /usr/share/dbenv"
+	local dir
+	local driver
+
+	# If DBENV_ROOT is set, only look there
+	if [ -n "${DBENV_ROOT}" ]; then
+		driver=${DBENV_ROOT}/drivers/${DRIVER}
+		if ! source ${driver}; then
+			err "Failed to load driver '${DRIVER}' from '${driver}'"
+			exit 1
+		fi
+		return
+	fi
+
+	for dir in ${check_dirs}; do
+		driver=${dir}/drivers/${DRIVER}
+		if [ -s ${driver} ]; then
+			if ! source ${driver}; then
+				err "Failed to load driver '${DRIVER}' from '${driver}'"
+				exit 1
+			fi
+			return
+		fi
+	done
+
+	err "Failed to find driver '${DRIVER}'"
+	exit 1
+}
+
+if [ -n "${DBENV_ROOT}" ]; then
+	DBENV_ROOT=$(readlink -f ${DBENV_ROOT})
+fi
+
+DRIVER=$(basename ${0})
+if [ "${DRIVER}" == "dbenv" ]; then
+	DRIVER=${1}
+	shift
+else
+	DRIVER=${DRIVER#dbenv-}
+fi
+_source_driver
+
+DBDATA=".dbenv-${driver_dbtype}"
+export DBENV_CONF="dbenv-${DRIVER}.conf"
+
 action=
 declare -a extra
 
@@ -172,7 +237,7 @@ while [ $# -ne 0 ]; do
 			DBNAME=${1}
 			;;
 		-I|--initialize)
-			B=$(realpath -m $(pwd))/.${dbdirname}
+			B=$(realpath -m $(pwd))/${DBDATA}
 			mkdir -p ${B} &> /dev/null
 			;;
 		-h)

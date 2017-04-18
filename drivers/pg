@@ -74,9 +74,8 @@ _url() {
 	echo "postgres://${USER}@${HOST}:${PORT}/${DBNAME}"
 }
 
-dbtype="pg"
-default_user="pgdev"
-default_dbname="pgdev"
-. ~/.local/dbenv/base.sh
+driver_dbtype="pg"
+driver_default_user="pgdev"
+driver_default_dbname="pgdev"
 
 # vim: noet
