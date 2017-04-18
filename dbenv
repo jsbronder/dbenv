@@ -20,6 +20,7 @@ usage() {
 		                             directory or / looking for the directory '${DBDATA}/'.
 		                             If not found, the default ~/.local/dbenv/${DBDATA}/ is used.
 		    -I, --initialize         Shortcut for "--base-dir ./${DBDATA}"
+		    -f, --force              Do not prompt for confirmation
 
 
 		ACTION:
@@ -223,6 +224,7 @@ DBDATA=".dbenv-${driver_dbtype}"
 export DBENV_CONF="dbenv-${DRIVER}.conf"
 
 action=
+force=false
 declare -a extra
 
 while [ $# -ne 0 ]; do
@@ -235,6 +237,9 @@ while [ $# -ne 0 ]; do
 		-d|--db)
 			shift;
 			DBNAME=${1}
+			;;
+		-f|--force)
+			force=true
 			;;
 		-I|--initialize)
 			B=$(realpath -m $(pwd))/${DBDATA}
@@ -277,9 +282,13 @@ case ${action} in
 		;;
 	clean)
 		server_running && stop_server
-		read -n 1 -r -p "Wipe ${B}? [Y/n] " ans
-		echo
-		if [ -z "${ans}" ] || [ "${ans}" == "y" ] || [ "${ans}" == "Y" ]; then
+		if ! ${force}; then
+			read -n 1 -r -p "Wipe ${B}? [Y/n] " ans
+			echo
+			if [ -z "${ans}" ] || [ "${ans}" == "y" ] || [ "${ans}" == "Y" ]; then
+				rm -rf ${B}
+			fi
+		else
 			rm -rf ${B}
 		fi
 		;;
