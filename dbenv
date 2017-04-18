@@ -177,6 +177,11 @@ _stop_server() { missing "_stop_server"; }
 _shell() { missing "_shell"; }
 _url() { missing "_url"; }
 
+# This is optional for the drivers to define.  It is run just after
+# the command line is processed.  This is a suitable place to that
+# required packages are installed.
+_check_env() { :; }
+
 _source_driver() {
 	local check_dirs="~/.local/dbenv /usr/share/dbenv"
 	local dir
@@ -265,6 +270,7 @@ if [ -z "${action}" ]; then
 	exit 1
 fi
 
+_check_env
 init
 
 case ${action} in
