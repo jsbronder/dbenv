@@ -48,6 +48,16 @@ _url() {
 	echo "redis://${HOST}:${PORT}"
 }
 
+_check_env() {
+	if [ ! -n "$(which redis-server)" ]; then
+		err "Could not find redis-server"
+		exit 1
+	elif [ ! -n "$(which redis-cli)" ]; then
+		err "Could not find redis-cli"
+		exit 1
+	fi
+}
+
 driver_dbtype="redis"
 
 # vim: noet
