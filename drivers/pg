@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 have_database() {
 	! server_running || return 1;

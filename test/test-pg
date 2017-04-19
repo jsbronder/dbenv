@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 test_1_help() {
     ${R}/dbenv pg -h >/dev/null || die ${LINENO}
