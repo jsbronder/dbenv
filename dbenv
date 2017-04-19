@@ -242,8 +242,8 @@ while [ $# -ne 0 ]; do
 	case $1 in
 		-b|--base-dir)
 			shift;
+			mkdir -p ${1} &> /dev/null
 			B=$(readlink -f ${1})
-			mkdir -p ${B} &> /dev/null
 			;;
 		-d|--db)
 			shift;
