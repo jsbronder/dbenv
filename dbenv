@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+
+export B=
+export HOST=
+export PORT=
+export DBNAME=
+export USER=
+export DRIVER=
+export DBENV_ROOT=${DBENV_ROOT}
+export DBDATA=
+
+usage() {
+	cat <<-EOF
+		$(basename ${0}) [ARGUMENTS] [ACTION] [[EXTRA ARGUMENTS]]
+
+		ARGUMENTS:
+		    -h, --help               This screen
+		    -b, --base-dir [PATH]    Path to base directory.  If unspecified, the directory
+		                             tree will be searched upward to either the user's home
+		                             directory or / looking for the directory '${DBDATA}/'.
+		                             If not found, the default ~/.local/dbenv/${DBDATA}/ is used.
+		    -I, --initialize         Shortcut for "--base-dir ./${DBDATA}"
+		    -f, --force              Do not prompt for confirmation
+
+
+		ACTION:
+		    start         Start the ${driver_dbtype} server and create the default database
+		    stop          Stop the resid server
+		    shell         Connect to server with psql
+		    clean         Stop the server and wipe any remaining files
+		    url           Print url to ${driver_dbtype} server
+		    base-dir      Print the resolved base-dir
+
+		EXTRA ARGUMENTS are passed when using the 'shell' action and are otherwise ignored.
+	EOF
+}
+
+err() { echo -e "\e[31m*\e[0m $*"; }
+info() { echo -e "\e[32m*\e[0m $*"; }
+warn() { echo -e "\e[33m*\e[0m $*"; }
+
+get_port() {
+	if server_running; then
+		_get_port_from_running_db
+	fi
+
+	local host=${1}
+	local cmd
+
+	cmd+="import socket;"
+	cmd+="s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);"
+	cmd+="s.bind(('127.0.0.1', 0));"
+	cmd+="print(s.getsockname()[1]);"
+
+	if [ -n "$(which python)" ]; then
+		echo ${cmd} | python
+	elif [ -n "$(which python3)" ]; then
+		echo ${cmd} | python3
+	else
+		echo ${cmd} | python2
+	fi
+}
+
+init() {
+	# First find the base directory
+	# - If B was already set we're done.
+	# - Otherwise search up the directory tree looking for ${DBDATA}
+	# - Finally fall back to using ~/.local/dbenv/${DBDATA}
+	if [ ! -n "${B}" ]; then
+		while [ ! -d ./${DBDATA} ]; do
+			cd ../
+			[ $(pwd) == ${HOME} ] && break
+			[ $(pwd) == / ] && break
+		done
+
+		if [ -d ./${DBDATA} ]; then
+			B=$(pwd)/${DBDATA}/
+		else
+			B=${HOME}/.local/dbenv/${DBDATA}
+		fi
+	fi
+
+	[ ! -d ${B} ] && mkdir -p ${B}
+
+	if [ -s ${B}/${DBENV_CONF} ]; then
+		source ${B}/${DBENV_CONF}
+	fi
+
+	: ${USER:=${driver_default_user}}
+	: ${DBNAME:=${driver_default_dbname}}
+	: ${HOST:=127.0.0.1}
+	: ${PORT:=$(get_port)}
+
+	if [ ! -s ${B}/${DBENV_CONF} ]; then
+		_write_config
+	fi
+}
+
+server_initialized() {
+	_server_initialized
+}
+
+server_running() {
+	[ -z "${HOST}" ] && return 1
+	[ -z "${PORT}" ] && return 1
+	_server_running
+}
+
+init_server() {
+	local r
+
+	server_initialized && return
+
+	_write_server_configs
+	if [ $? -ne 0 ]; then
+		err "Failed to write server configs"
+		return 1
+	fi
+
+	mkdir -p ${B}/tmp &>/dev/null
+	mkdir -p ${B}/data &>/dev/null
+	return 0
+}
+
+start_server() {
+	local r
+
+	if ! server_initialized; then
+		init_server || return 1
+	fi
+
+	server_running && return
+
+	_start_server
+
+	for ((i=0; i < 100; ++i)); do
+		sleep 0.1
+		server_running && break
+	done
+
+	server_running
+}
+
+stop_server() {
+	if ! server_running; then
+		err "No server running"
+		return 0
+	fi
+
+	_stop_server
+
+	if [ $? -ne 0 ]; then
+		err "Failed to stop server"
+	fi
+
+	return 0
+}
+
+shell() {
+	if ! server_running; then
+		start_server || return 1
+	fi
+
+	_shell ${@}
+}
+
+
+# Initialization:
+# 	- Define defaults for driver functions
+#	- Find and source the driver
+
+_missing() {
+	err "${DRIVER}_${1} undefined"
+	exit 1
+}
+_get_port_from_running_db() { missing "_get_port_from_running_db"; }
+_write_config () { missing "_write_config"; }
+_server_initialized() { missing "_server_initialized"; }
+_server_running() { missing "_server_running"; }
+_write_server_configs() { missing "_write_server_configs"; }
+_start_server() { missing "_start_server"; }
+_stop_server() { missing "_stop_server"; }
+_shell() { missing "_shell"; }
+_url() { missing "_url"; }
+
+# This is optional for the drivers to define.  It is run just after
+# the command line is processed.  This is a suitable place to that
+# required packages are installed.
+_check_env() { :; }
+
+_source_driver() {
+	local check_dirs="~/.local/dbenv /usr/share/dbenv"
+	local dir
+	local driver
+
+	# If DBENV_ROOT is set, only look there
+	if [ -n "${DBENV_ROOT}" ]; then
+		driver=${DBENV_ROOT}/drivers/${DRIVER}
+		if ! source ${driver}; then
+			err "Failed to load driver '${DRIVER}' from '${driver}'"
+			exit 1
+		fi
+		return
+	fi
+
+	for dir in ${check_dirs}; do
+		driver=${dir}/drivers/${DRIVER}
+		if [ -s ${driver} ]; then
+			if ! source ${driver}; then
+				err "Failed to load driver '${DRIVER}' from '${driver}'"
+				exit 1
+			fi
+			return
+		fi
+	done
+
+	err "Failed to find driver '${DRIVER}'"
+	exit 1
+}
+
+if [ -n "${DBENV_ROOT}" ]; then
+	DBENV_ROOT=$(readlink -f ${DBENV_ROOT})
+fi
+
+DRIVER=$(basename ${0})
+if [ "${DRIVER}" == "dbenv" ]; then
+	DRIVER=${1}
+	shift
+else
+	DRIVER=${DRIVER#dbenv-}
+fi
+_source_driver
+
+DBDATA=".dbenv-${driver_dbtype}"
+export DBENV_CONF="dbenv-${DRIVER}.conf"
+
+action=
+force=false
+declare -a extra
+
+while [ $# -ne 0 ]; do
+	case $1 in
+		-b|--base-dir)
+			shift;
+			mkdir -p ${1} &> /dev/null
+			B=$(readlink -f ${1})
+			;;
+		-d|--db)
+			shift;
+			DBNAME=${1}
+			;;
+		-f|--force)
+			force=true
+			;;
+		-I|--initialize)
+			B=$(readlink -f $(pwd))/${DBDATA}
+			mkdir -p ${B} &> /dev/null
+			;;
+		-h)
+			usage
+			exit 0
+			;;
+		*)
+			if [ -z "${action}" ]; then
+				action=${1}
+			else
+				extra+=(${1})
+			fi
+			;;
+	esac
+	shift
+done
+
+if [ -z "${action}" ]; then
+	err "No action specified"
+	exit 1
+fi
+
+_check_env
+init
+
+case ${action} in
+	init)
+		init_server
+		;;
+	start)
+		start_server
+		;;
+	stop)
+		stop_server
+		;;
+	shell)
+		shell ${extra[@]}
+		;;
+	clean)
+		server_running && stop_server
+		if ! ${force}; then
+			read -n 1 -r -p "Wipe ${B}? [Y/n] " ans
+			echo
+			if [ -z "${ans}" ] || [ "${ans}" == "y" ] || [ "${ans}" == "Y" ]; then
+				rm -rf ${B}
+			fi
+		else
+			rm -rf ${B}
+		fi
+		;;
+	url)
+		_url
+		;;
+	base-dir)
+		echo ${B}
+		;;
+	*)
+		usage
+		err "Unknown action"
+		exit 1
+esac
+
+# vim: noet

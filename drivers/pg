@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+have_database() {
+	! server_running || return 1;
+	${PSQL} -U ${USER} -h ${HOST} -p ${PORT} \
+		| awk '{print $1}' \
+		| grep -qw ${DBNAME}
+}
+
+# Find a postgres util.  We have to do this as some distros do not put the
+# utilities in the default PATH.
+find_util() {
+	local util=$1
+
+	local match=$(which ${util})
+	if [ -n "${match}" ]; then
+		echo ${match}
+		return
+	fi
+
+	local d="/usr/lib/postgresql"
+	if [ -d "${d}" ] && [ -x "${d}/bin/${util}" ]; then
+		echo "${d}/bin/${util}"
+		return
+	fi
+
+	for d in $(echo /usr/lib/postgresql/* | sort); do
+		if [ -x "${d}/bin/${util}" ]; then
+			echo "${d}/bin/${util}"
+			return
+		fi
+	done
+}
+
+_get_port_from_running_db() {
+	head -n 4 ${B}/data/postmaster.pid | tail -n 1
+}
+
+_write_config() {
+	cat <<-EOF > ${B}/${DBENV_CONF}
+		USER=${USER}
+		HOST=${HOST}
+		DBNAME=${DBNAME}
+		PORT=${PORT}
+	EOF
+}
+
+_server_initialized() {
+	[ -s ${B}/data/PG_VERSION ]
+}
+
+_server_running() {
+	[ -s ${B}/data/postmaster.pid ]
+}
+
+_write_server_configs() {
+	info "Running initdb"
+	${INITDB} -D ${B}/data -U ${USER} -A trust > ${B}/initdb.log
+}
+
+_start_server() {
+	${PG_CTL} start -D ${B}/data -l ${B}/log  -w -o "-k ${B}/tmp -p ${PORT}"
+	r=$?
+
+	if [ ${r} -ne 0 ]; then
+		err "postgres failed"
+		return ${r}
+	fi
+
+	if ! have_database; then
+		${CREATEDB} -h ${HOST} -U ${USER} -p ${PORT} ${DBNAME}
+		r=${?}
+
+		if [ ${r} -ne 0 ]; then
+			err "createdb failed"
+		fi
+	fi
+
+	return ${r}
+}
+
+_stop_server() {
+	local pid=$(head -n 1 ${B}/data/postmaster.pid)
+
+	${PG_CTL} stop -D ${B}/data
+	if [ $? -ne 0 ]; then
+		err "Failed to stop server"
+		return 1
+	fi
+
+	return 0
+}
+
+_shell() {
+	${PSQL} -U ${USER} -h ${HOST} -d ${DBNAME} -p ${PORT} ${@}
+}
+
+_url() {
+	echo "postgres://${USER}@${HOST}:${PORT}/${DBNAME}"
+}
+
+_check_env() {
+	PSQL=$(find_util psql)
+	INITDB=$(find_util initdb)
+	CREATEDB=$(find_util createdb)
+	PG_CTL=$(find_util pg_ctl)
+
+	__check_env_die() {
+		err "Could not find $1"
+		exit 1
+	}
+
+	[ -z "${PSQL}" ] && __check_env_die "psql"
+	[ -z "${INITDB}" ] && __check_env_die "initdb"
+	[ -z "${CREATEDB}" ] && __check_env_die "createdb"
+	[ -z "${PG_CTL}" ] && __check_env_die "pg_ctl"
+	unset -f __check_env_die
+}
+
+driver_dbtype="pg"
+driver_default_user="pgdev"
+driver_default_dbname="pgdev"
+
+# vim: noet

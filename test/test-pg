@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+test_1_help() {
+    ${R}/dbenv pg -h >/dev/null || die ${LINENO}
+}
+
+test_2_base_dir() {
+    local out
+
+    out=$(${R}/dbenv pg base-dir) || die ${LINENO}
+    [ "${out}" == "${HOME}/.local/dbenv/.dbenv-pg" ] || die ${LINENO}
+
+    out=$(${R}/dbenv pg -b ${T} base-dir) || die ${LINENO}
+    [ "${out}" == "${T}" ] || die ${LINENO}
+}
+
+test_3_pg() {
+    local cmd="${R}/dbenv pg -b ${T}/dbdir"
+
+    ${cmd} start >/dev/null || die ${LINENO}
+    [ -d ${T}/dbdir ] || die ${LINENO}
+    [ -d ${T}/dbdir/data ] || die ${LINENO}
+    ps | grep postgres >/dev/null || die ${LINENO}
+
+    local lockfile=$(find ${T}/dbdir/tmp/ -maxdepth 1 -name '*.lock')
+    [ -s "${lockfile}" ] || die ${LINENO}
+
+    local port=$(source ${T}/dbdir/dbenv-pg.conf && echo ${PORT})
+    [ "$(${cmd} url)" == "postgres://pgdev@127.0.0.1:${port}/pgdev" ] || die ${LINENO}
+
+    local out=$(echo '\conninfo' | ${cmd} shell)
+    echo ${out} | grep -q "You are connected to database" || die ${LINENO}
+
+    ${cmd} stop >/dev/null || die ${LINENO}
+    [ -d ${T}/dbdir/data ] || die ${LINENO}
+    [ ! -f "${lockfile}" ] || die ${LINENO}
+
+    ${cmd} --force clean >/dev/null || die ${LINENO}
+    [ ! -d ${T}/dbdir/data ] || die ${LINENO}
+}
+
+source $(dirname $(readlink -f ${0}))/base.sh

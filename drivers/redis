@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 _get_port_from_running_db() {
 	grep '^port' ${B}/redis.conf | awk '{print $2}'
@@ -48,7 +48,6 @@ _url() {
 	echo "redis://${HOST}:${PORT}"
 }
 
-dbtype="redis"
-. ~/.local/dbenv/base.sh
+driver_dbtype="redis"
 
 # vim: noet

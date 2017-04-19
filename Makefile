@@ -1,22 +1,34 @@
-NO_SYMLINK ?= false
-pwd=`pwd`
+BINDIR ?= ~/bin
+
+# This can be overwritten but right now we only support ~/.local/dbenv or
+# /usr/share/dbenv/ without having DBENV_ROOT set in the environment
+DBENV_ROOT ?= ~/.local/dbenv
+
+DRIVERDIR = $(DBENV_ROOT)/drivers
+DRIVERS=pg redis
+
+.PHONY: test
 
 install:
-	@install -m 755 -d ~/bin
-	@install -m 755 -d ~/.local/dbenv
-	@if $(NO_SYMLINK); then \
-		install -m 644 base.sh ~/.local/dbenv/;  \
-		install -m 755 dbenv-pg ~/bin/; \
-		install -m 755 dbenv-redis ~/bin/; \
-	else \
-		ln -snf $(pwd)/base.sh ~/.local/dbenv/base.sh; \
-		ln -snf $(pwd)/dbenv-pg  ~/bin/; \
-		ln -snf $(pwd)/dbenv-redis  ~/bin/; \
-	fi
+	install -m 755 -d $(DBENV_ROOT)/bin
+	install -m 755 dbenv $(DBENV_ROOT)/bin
+	install -m 755 -d $(DRIVERDIR)
+	install -m 755 -d $(BINDIR)
+	for driver in $(DRIVERS); do \
+		ln -snf $(DBENV_ROOT)/bin/dbenv $(BINDIR)/dbenv-$${driver}; \
+		install -m 644 drivers/$${driver} $(DRIVERDIR)/; \
+	done;
 
 uninstall:
-	rm ~/bin/dbenv-pg
-	rm ~/bin/dbenv-redis
-	rm ~/.local/dbenv/base.sh
-	rmdir ~/.local/dbenv
+	rm $(DBENV_ROOT)/bin/dbenv
+	for driver in $(DRIVERS); do \
+		rm $(BINDIR)/dbenv-$${driver}; \
+		rm $(DRIVERDIR)/$${driver}; \
+	done;
+	rmdir $(DRIVERDIR)
 
+test:
+	@for driver in $(DRIVERS); do \
+		echo Testing $${driver}; \
+		setsid test/test-$${driver}; \
+	done;
