@@ -52,7 +52,13 @@ get_port() {
 	cmd+="s.bind(('127.0.0.1', 0));"
 	cmd+="print(s.getsockname()[1]);"
 
-	echo ${cmd} | python
+	if [ -n "$(which python)" ]; then
+		echo ${cmd} | python
+	elif [ -n "$(which python3)" ]; then
+		echo ${cmd} | python3
+	else
+		echo ${cmd} | python2
+	fi
 }
 
 init() {
