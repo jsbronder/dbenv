@@ -5,7 +5,7 @@ set -o pipefail
 export R=$(readlink -f $(dirname $0/)/../)
 export DBENV_ROOT=${R}
 export TMPDIR=$(readlink -f $(dirname $0))
-T=${TMPDIR}/$(mktemp --directory --dry-run tmpXXX)
+T=${TMPDIR}/$(mktemp -d tmpXXX)
 FULL_PATH=$(readlink -f $0)
 
 cleanup() {
