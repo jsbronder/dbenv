@@ -189,7 +189,7 @@ _url() { missing "_url"; }
 _check_env() { :; }
 
 _source_driver() {
-	local check_dirs="~/.local/dbenv /usr/share/dbenv"
+	local check_dirs="${HOME}/.local/dbenv /usr/share/dbenv"
 	local dir
 	local driver
 
