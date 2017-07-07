@@ -45,7 +45,6 @@ get_port() {
 		return
 	fi
 
-	local host=${1}
 	local cmd
 
 	cmd+="import socket;"
@@ -108,8 +107,6 @@ server_running() {
 }
 
 init_server() {
-	local r
-
 	server_initialized && return
 
 	_write_server_configs
@@ -124,8 +121,6 @@ init_server() {
 }
 
 start_server() {
-	local r
-
 	if ! server_initialized; then
 		init_server || return 1
 	fi
