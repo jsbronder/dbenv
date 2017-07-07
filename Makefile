@@ -5,7 +5,7 @@ BINDIR ?= ~/bin
 DBENV_ROOT ?= ~/.local/dbenv
 
 DRIVERDIR = $(DBENV_ROOT)/drivers
-DRIVERS=pg redis
+DRIVERS ?= pg redis
 
 .PHONY: test
 
