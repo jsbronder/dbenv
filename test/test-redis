@@ -49,4 +49,4 @@ test_3_redis() {
     [ ! -d ${T}/dbdir/data ] || die ${LINENO}
 }
 
-source $(dirname $(readlink -f ${0}))/base.sh
+source $(dirname $(realpath ${0}))/base.sh

@@ -12,9 +12,9 @@ fi
 
 export R=$(realpath $(dirname $0/)/../)
 export DBENV_ROOT=${R}
-export TMPDIR=$(readlink -f $(dirname $0))
+export TMPDIR=$(realpath $(dirname $0))
 T=$(mktemp -d ${TMPDIR}/tmpXXX)
-FULL_PATH=$(readlink -f $0)
+FULL_PATH=$(realpath $0)
 
 cleanup() {
     if [ -d ${T} ]; then

@@ -23,3 +23,13 @@ ACTION:
 
 EXTRA ARGUMENTS are passed when using the 'shell' action and are otherwise ignored.
 ```
+
+Mac OS X
+--------
+
+dbenv relies on GNU realpath utility. On Mac OS X, you have to install
+coreutils package, e.g. via homebrew:
+
+```
+brew install coreutils
+```

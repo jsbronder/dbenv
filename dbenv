@@ -219,7 +219,8 @@ _source_driver() {
 }
 
 if [ -n "${DBENV_ROOT}" ]; then
-	DBENV_ROOT=$(readlink -f ${DBENV_ROOT})
+	[ -d "${DBENV_ROOT}" ] || mkdir -p "${DBENV_ROOT}"
+	DBENV_ROOT=$(realpath "${DBENV_ROOT}")
 fi
 
 DRIVER=$(basename ${0})
@@ -243,7 +244,7 @@ while [ $# -ne 0 ]; do
 		-b|--base-dir)
 			shift;
 			mkdir -p ${1} &> /dev/null
-			B=$(readlink -f ${1})
+			B=$(realpath ${1})
 			;;
 		-d|--db)
 			shift;
@@ -253,7 +254,7 @@ while [ $# -ne 0 ]; do
 			force=true
 			;;
 		-I|--initialize)
-			B=$(readlink -f $(pwd))/${DBDATA}
+			B=$(pwd -P)/${DBDATA}
 			mkdir -p ${B} &> /dev/null
 			;;
 		-h)
