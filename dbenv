@@ -154,7 +154,7 @@ shell() {
 		start_server || return 1
 	fi
 
-	_shell ${@}
+	_shell "${@}"
 }
 
 
@@ -258,7 +258,7 @@ while [ $# -ne 0 ]; do
 			if [ -z "${action}" ]; then
 				action=${1}
 			else
-				extra+=(${1})
+				extra+=("${1}")
 			fi
 			;;
 	esac
@@ -284,7 +284,7 @@ case ${action} in
 		stop_server
 		;;
 	shell)
-		shell ${extra[@]}
+		shell "${extra[@]}"
 		;;
 	clean)
 		server_running && stop_server
