@@ -45,20 +45,17 @@ get_port() {
 		return
 	fi
 
-	local cmd
+	local py
+	for py in python3 python3.5 python2 python2.7 python; do
+		which $py 1>/dev/null && break
+	done
 
-	cmd+="import socket;"
-	cmd+="s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);"
-	cmd+="s.bind(('127.0.0.1', 0));"
-	cmd+="print(s.getsockname()[1]);"
-
-	if [ -n "$(which python)" ]; then
-		echo ${cmd} | python
-	elif [ -n "$(which python3)" ]; then
-		echo ${cmd} | python3
-	else
-		echo ${cmd} | python2
-	fi
+	$py <<-EOF
+		import socket
+		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s.bind(('127.0.0.1', 0))
+		print(s.getsockname()[1])
+	EOF
 }
 
 init() {
