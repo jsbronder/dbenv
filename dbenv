@@ -42,6 +42,7 @@ warn() { echo -e "\e[33m*\e[0m $*"; }
 get_port() {
 	if server_running; then
 		_get_port_from_running_db
+		return
 	fi
 
 	local host=${1}
