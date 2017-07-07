@@ -2,7 +2,15 @@
 
 set -o pipefail
 
-export R=$(readlink -f $(dirname $0/)/../)
+PGID=$(ps -o pgid -p $$ | tail -1)
+if [ "$PGID" != "$$" ]; then
+	which setsid &>/dev/null && exec setsid "$0" "$@"
+	which script &>/dev/null && exec script -q /dev/null "$0" "$@"
+	echo "ERROR: failed to become group leader"
+	exit 1
+fi
+
+export R=$(realpath $(dirname $0/)/../)
 export DBENV_ROOT=${R}
 export TMPDIR=$(readlink -f $(dirname $0))
 T=$(mktemp -d ${TMPDIR}/tmpXXX)

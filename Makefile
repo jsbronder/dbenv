@@ -30,5 +30,5 @@ uninstall:
 test:
 	@for driver in $(DRIVERS); do \
 		echo Testing $${driver}; \
-		setsid test/test-$${driver}; \
+		test/test-$${driver}; \
 	done;
